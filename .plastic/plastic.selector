@@ -1,0 +1,4 @@
+repository "ShorelineSentinel/ShorelineSentinel_Main@2475536817695@cloud"
+  path "/"
+    br "/main"
+    co "/main"
