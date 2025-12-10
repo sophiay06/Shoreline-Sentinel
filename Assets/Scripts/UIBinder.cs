@@ -19,12 +19,15 @@ public class UIBinder : MonoBehaviour
     public bool autoDiscoverWater = true;
     public string waterRendererNameHint = "Water";
 
-    [Header("Tree Type UI (optional)")]
+    [Header("Initial values")]
+    [Range(0f,1f)] public float initialVegDensity = 0.50f;
+
+    [Header("Tree Type UI")]
     public Dropdown ddTreeType;
     public Toggle tMixedTypes; 
     
     [Header("Wave property")]
-    [Tooltip("Shader property name for wave height (_WaveHeight for StylizedWater2).")]
+    [Tooltip("Shader property name for wave height (_WaveHeight for StylizedWater2)")]
     public string waveHeightProperty = "_WaveHeight";
     public float waveMin = 0f;
     public float waveMax = 2f;
@@ -33,7 +36,7 @@ public class UIBinder : MonoBehaviour
     [Tooltip("If true: bar.maxZOffset means 'closest to beach'. If false: bar.maxZOffset means 'farthest'.")]
     public bool zOffsetMaxIsCloser = true;
 
-    [Header("UI Sliders (normalized 0..1)")]
+    [Header("UI Sliders")]
     public Slider sWaveHeight;
     public Slider sDuneHeight;
     public Slider sDuneWidth;
@@ -42,14 +45,14 @@ public class UIBinder : MonoBehaviour
     public Slider sBarHeight;
     public Slider sBarZ;
 
-    [Header("Multi-water (preferred when multiple water meshes)")]
+    [Header("Multi-water")]
     public MultiWaterWaveBinder multiBinder;
 
-    // ---- internals ----
+    //internals
     MaterialPropertyBlock _mpb;
     int _waveID = -1;
     string _resolvedProp = null;
-    float _normalizedWave = 0.5f; // single source of truth for wave in [0,1]
+    float _normalizedWave = 0.5f;
     bool _waveDirty = false;
 
     void Awake()
@@ -75,16 +78,18 @@ public class UIBinder : MonoBehaviour
         ResolveWaveProperty();
         HookUI();
 
-        // initialize controller states from sliders (if present)
+        // initialize controller states
         ApplyDuneFromUI();
         ApplyVegetationFromUI();
         SetupTreeTypeUI();
         ApplySandbarFromUI();
 
+        SetVegDensity01(initialVegDensity, recalcWave: true);
+
         // initialize wave from UI
         if (sWaveHeight) _normalizedWave = Mathf.Clamp01(sWaveHeight.value);
         _waveDirty = true;
-        ApplyWaveNow(); // push once
+        ApplyWaveNow(); 
     }
 
     void OnDestroy()
@@ -92,14 +97,12 @@ public class UIBinder : MonoBehaviour
         UnhookUI();
     }
 
-    // ------------------- UI wiring -------------------
-
     void HookUI()
     {
         if (sWaveHeight) sWaveHeight.onValueChanged.AddListener(OnWaveSliderChanged);
         if (sDuneHeight) sDuneHeight.onValueChanged.AddListener(_ => { ApplyDuneFromUI(); RecalculateWaveHeight(); });
         if (sDuneWidth) sDuneWidth.onValueChanged.AddListener(_ => { ApplyDuneFromUI(); RecalculateWaveHeight(); });
-        if (sVegDensity) sVegDensity.onValueChanged.AddListener(_ => { ApplyVegetationFromUI(); RecalculateWaveHeight(); });
+        if (sVegDensity) sVegDensity.onValueChanged.AddListener(v => SetVegDensity01(v, recalcWave: true));
         if (sVegHeight) sVegHeight.onValueChanged.AddListener(_ => { ApplyVegetationFromUI(); RecalculateWaveHeight(); });
         if (sBarHeight) sBarHeight.onValueChanged.AddListener(_ => { ApplySandbarFromUI(); RecalculateWaveHeight(); });
         if (sBarZ) sBarZ.onValueChanged.AddListener(_ => { ApplySandbarFromUI(); RecalculateWaveHeight(); });
@@ -117,8 +120,6 @@ public class UIBinder : MonoBehaviour
         if (ddTreeType) ddTreeType.onValueChanged.RemoveAllListeners();
         if (tMixedTypes) tMixedTypes.onValueChanged.RemoveAllListeners();
     }
-
-    // ------------------- Controller forwarding -------------------
 
     void ApplyDuneFromUI()
     {
@@ -147,60 +148,51 @@ public class UIBinder : MonoBehaviour
             bar.zOffset = Mathf.Lerp(bar.minZOffset, bar.maxZOffset, Mathf.Clamp01(sBarZ.value));
     }
 
-    void SetupTreeTypeUI()
-{
-    if (!veg) return;
+    void SetupTreeTypeUI() {
+        if (!veg) return;
 
-    // Populate dropdown options from VegetationController.variants if present, else from prefabs[]
-    if (ddTreeType)
-    {
-        ddTreeType.ClearOptions();
-        var options = new System.Collections.Generic.List<Dropdown.OptionData>();
+        if (ddTreeType)  {
+            ddTreeType.ClearOptions();
+            var options = new System.Collections.Generic.List<Dropdown.OptionData>();
 
-        bool usedVariants = veg.variants != null && veg.variants.Count > 0;
-        if (usedVariants)
-        {
-            foreach (var v in veg.variants)
-                options.Add(new Dropdown.OptionData(v ? v.displayName : "Tree"));
-            ddTreeType.AddOptions(options);
-            ddTreeType.SetValueWithoutNotify(Mathf.Clamp(veg.selectedVariantIndex, 0, veg.variants.Count - 1));
+            bool usedVariants = veg.variants != null && veg.variants.Count > 0;
+            if (usedVariants)
+            {
+                foreach (var v in veg.variants)
+                    options.Add(new Dropdown.OptionData(v ? v.displayName : "Tree"));
+                ddTreeType.AddOptions(options);
+                ddTreeType.SetValueWithoutNotify(Mathf.Clamp(veg.selectedVariantIndex, 0, veg.variants.Count - 1));
+            }
+            else if (veg.prefabs != null && veg.prefabs.Length > 0)
+            {
+                foreach (var p in veg.prefabs)
+                    options.Add(new Dropdown.OptionData(p ? p.name : "Tree"));
+                ddTreeType.AddOptions(options);
+                ddTreeType.SetValueWithoutNotify(0);
+            }
+
+            ddTreeType.onValueChanged.AddListener(i =>
+            {
+                veg.SetTreeTypeIndex(i);
+                RecalculateWaveHeight();
+            });
         }
-        else if (veg.prefabs != null && veg.prefabs.Length > 0)
-        {
-            foreach (var p in veg.prefabs)
-                options.Add(new Dropdown.OptionData(p ? p.name : "Tree"));
-            ddTreeType.AddOptions(options);
-            ddTreeType.SetValueWithoutNotify(0);
+
+        if (tMixedTypes) {
+            tMixedTypes.isOn = veg.mixedTypes;
+            tMixedTypes.onValueChanged.AddListener(on =>
+            {
+                veg.SetMixedTypes(on);
+                // Keep dropdown enabled only when not mixed
+                if (ddTreeType) ddTreeType.interactable = !on;
+                RecalculateWaveHeight();
+            });
+
+            if (ddTreeType) ddTreeType.interactable = !tMixedTypes.isOn;
         }
-
-        ddTreeType.onValueChanged.AddListener(i =>
-        {
-            // If you’re using variants, this selects that variant.
-            // If you’re using only prefabs[], VegetationController.PickPrefab() can read this index if you extend it,
-            // but with the SO approach you don’t need that—this call is enough:
-            veg.SetTreeTypeIndex(i);
-            // Recalculate waves since vegetation “type” might conceptually change protection in your model (optional)
-            RecalculateWaveHeight();
-        });
-    }
-
-    if (tMixedTypes)
-    {
-        tMixedTypes.isOn = veg.mixedTypes;
-        tMixedTypes.onValueChanged.AddListener(on =>
-        {
-            veg.SetMixedTypes(on);
-            // Keep dropdown enabled only when not mixed
-            if (ddTreeType) ddTreeType.interactable = !on;
-            RecalculateWaveHeight();
-        });
-
-        if (ddTreeType) ddTreeType.interactable = !tMixedTypes.isOn;
-    }
 }
 
-    // ------------------- Wave logic -------------------
-
+    //Wave
     public void OnWaveSliderChanged(float v01)
     {
         SetWaveNormalized(v01);
@@ -214,7 +206,6 @@ public class UIBinder : MonoBehaviour
             _normalizedWave = c;
             _waveDirty = true;
 
-            // keep slider visually in sync WITHOUT re-firing event
             if (sWaveHeight) sWaveHeight.SetValueWithoutNotify(c);
         }
     }
@@ -232,14 +223,12 @@ public class UIBinder : MonoBehaviour
     {
         float height = Mathf.Lerp(waveMin, waveMax, _normalizedWave);
 
-        // Preferred path: multi-mesh applier
         if (multiBinder)
         {
             multiBinder.Apply(height);
             return;
         }
 
-        // Fallback: single water renderer via MPB
         if (waterRenderer && !string.IsNullOrEmpty(_resolvedProp))
         {
             waterRenderer.GetPropertyBlock(_mpb);
@@ -249,14 +238,11 @@ public class UIBinder : MonoBehaviour
             return;
         }
 
-        // Last resort: write to shared material asset (global)
         if (waterMaterialAsset && !string.IsNullOrEmpty(_resolvedProp))
         {
             waterMaterialAsset.SetFloat(_resolvedProp, height);
         }
     }
-
-    // ------------------- Protection model -------------------
 
     public void RecalculateWaveHeight()
     {
@@ -265,9 +251,8 @@ public class UIBinder : MonoBehaviour
         if (sDuneHeight) protection += 0.30f * sDuneHeight.value;
         if (sDuneWidth) protection += 0.30f * sDuneWidth.value;
         if (sVegDensity) protection += 0.30f * sVegDensity.value;
-        if (sVegHeight) protection += 0.30f * sVegDensity.value;
+        if (sVegHeight) protection += 0.30f * sVegHeight.value;
         if (sBarHeight) protection += 0.40f * sBarHeight.value;
-        // --- Sandbar position contribution (use actual controller state, not raw slider) ---
         if (bar != null)
         {
             float t = Mathf.InverseLerp(bar.minZOffset, bar.maxZOffset, bar.zOffset);
@@ -275,15 +260,11 @@ public class UIBinder : MonoBehaviour
             protection += 0.20f * Mathf.Clamp01(closeness);
         }
 
-
-        // More protection → smaller waves
         float normalizedWave = Mathf.Clamp01(1f - protection);
 
-        // Update unified wave value (applied in LateUpdate)
         SetWaveNormalized(normalizedWave);
     }
 
-    // ------------------- Utility -------------------
 
     void ResolveWaveProperty()
     {
@@ -294,4 +275,19 @@ public class UIBinder : MonoBehaviour
             _resolvedProp = "_WaveHeight";
         }
     }
+
+    public void SetVegDensity01(float v01, bool recalcWave = true)
+    {
+        float t = Mathf.Clamp01(v01);
+        if (veg) veg.density = t; 
+
+        if (sVegDensity)     
+            sVegDensity.SetValueWithoutNotify(t);
+
+        if (recalcWave) RecalculateWaveHeight();
+
+        Debug.Log($"[Veg] density set -> {t:F2}");
+
+    }
+
 }

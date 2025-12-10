@@ -30,13 +30,12 @@ public class MultiWaterWaveBinder : MonoBehaviour
         if (minHeight > maxHeight) maxHeight = minHeight;
     }
 
-    /// <summary>Apply a concrete shader-space height to all renderers.</summary>
     public void Apply(float height)
     {
         if (waterRenderers == null || waterRenderers.Length == 0) return;
 
         if (!float.IsNaN(lastApplied) && Mathf.Approximately(lastApplied, height))
-            return; // skip redundant writes
+            return;
 
         lastApplied = height;
 
@@ -44,13 +43,12 @@ public class MultiWaterWaveBinder : MonoBehaviour
         {
             if (!r) continue;
             r.GetPropertyBlock(mpb);
-            mpb.Clear(); // avoid stale keys
+            mpb.Clear();
             mpb.SetFloat(waveID, height);
             r.SetPropertyBlock(mpb);
         }
     }
 
-    /// <summary>Helper if you have a normalized [0,1] value.</summary>
     public void ApplyNormalized(float t01)
     {
         Apply(Mathf.Lerp(minHeight, maxHeight, Mathf.Clamp01(t01)));
