@@ -398,6 +398,31 @@ namespace Signals
         private bool _walkSeeded;
         private float _walk01 = 0f;
 
+        // -------------------------
+        // SlimeVR Trackers
+        // -------------------------
+        [Header("SlimeVR Trackers")]
+        public Transform leftAnkle;
+        public Transform rightAnkle;
+        public Transform rightThigh;
+
+        [Header("Right Knee Flexion (deg → 0..1)")]
+        public float kneeMinDeg = 0f; 
+        public float kneeMaxDeg = 45f;
+
+        [Header("Feet Distance (m → 0..1)")]
+        public float feetMinM = 0.15f; 
+        public float feetMaxM = 0.6f; 
+
+        [Header("SlimeVR Signals")]
+        public bool provideRightKneeFlexion = true;
+        public bool provideFeetDistance = true;
+
+        [Header("Slime Debug")]
+        public bool debugSlimeSignals = true;
+        public float slimeDebugInterval = 0.5f;
+
+        float _nextSlimeLog = 0f;
 
         // -------------------------
         // Debug
@@ -478,6 +503,13 @@ namespace Signals
 
             if (provideRightFingerDistance) UpdateRightFingerDistance();
             if (provideRightWristHeight)    UpdateRightWristHeight(dt);
+
+
+            // ----------------------------
+            // SlimeVR signals (always update)
+            // ----------------------------
+            if (provideRightKneeFlexion) UpdateRightKneeFlexion();
+            if (provideFeetDistance) UpdateFeetDistance();
 
             if (debugLogs && Time.time >= _nextLog)
             {
@@ -1833,6 +1865,66 @@ namespace Signals
         }
 
 
+        void UpdateRightKneeFlexion()
+        {
+            if (rightThigh == null || rightAnkle == null)
+                return;
+
+            Vector3 local = rightThigh.InverseTransformPoint(rightAnkle.position);
+
+            float backward = local.z;
+
+            float t = Mathf.InverseLerp(0f, 0.25f, backward);
+            float v01 = Mathf.Clamp01(t);
+
+            _signals[InputSignal.Slime_RightKneeFlexion01] = v01;
+
+            if (debugSlimeSignals && Time.time >= _nextSlimeLog)
+            {
+                _nextSlimeLog = Time.time + slimeDebugInterval;
+
+                Debug.Log($"[Slime Knee FIX] backward={backward:F3} 01={v01:F3}");
+            }
+        }
+
+
+        void UpdateFeetDistance()
+        {
+            //Debug.Log("UpdateFeetDistance CALLED");
+            if (leftAnkle == null || rightAnkle == null)
+            {
+                if (debugSlimeSignals)
+                    Debug.LogWarning("[Slime] FeetDistance missing references.");
+                return;
+            }
+
+            Vector3 a = leftAnkle.position;
+            Vector3 b = rightAnkle.position;
+
+            a.y = 0f;
+            b.y = 0f;
+
+            float dist = Vector3.Distance(a, b);
+
+            float t = Mathf.InverseLerp(feetMinM, feetMaxM, dist);
+            float v01 = Mathf.Clamp01(t);
+
+            _signals[InputSignal.Slime_FeetDistanceM] = dist;
+            _signals[InputSignal.Slime_FeetDistance01] = v01;
+
+            if (debugSlimeSignals && Time.time >= _nextSlimeLog)
+            {
+                _nextSlimeLog = Time.time + slimeDebugInterval;
+
+                Debug.Log(
+                    $"[Slime Feet] " +
+                    $"Left={leftAnkle.position:F3} " +
+                    $"Right={rightAnkle.position:F3} " +
+                    $"Dist={dist:F3}m " +
+                    $"01={v01:F3}"
+                );
+            }
+        }
 
          // -----------------------------
         // Helpers

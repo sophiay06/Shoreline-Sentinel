@@ -169,7 +169,7 @@ public class SlimeVROscReceiver : MonoBehaviour
         {
             var t = FindTarget(upd.id);
             if (!t) continue;
-
+            //Debug.Log($"Tracker {upd.id} updating instanceID {t.GetInstanceID()} name {t.name}");
             if (upd.type == UpdateType.Position)
             {
                 var worldPos = upd.vec;

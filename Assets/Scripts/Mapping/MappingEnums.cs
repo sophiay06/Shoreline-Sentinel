@@ -53,6 +53,12 @@ namespace MappingTool
         [DebugOnly] Forearms_HorizontalDistanceCm,
         [DebugOnly] RightHand_HandHeightYcm,
         [DebugOnly] Locomotion_DistanceFromStartCm,
+
+        Slime_RightKneeFlexion01,
+        Slime_FeetDistance01,
+
+        [DebugOnly] Slime_RightKneeFlexionDeg,
+        [DebugOnly] Slime_FeetDistanceM
     }
 
 

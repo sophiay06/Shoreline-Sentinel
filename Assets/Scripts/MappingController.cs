@@ -296,6 +296,30 @@ namespace MappingTool
                         smoothing = 0.0f,
                         deadzone = 0f
                     },
+                    new MappingBinding
+                    {
+                        outputParam = OutputParam.SandbarElevation,
+                        inputSignal = InputSignal.Slime_RightKneeFlexion01,
+                        inputMin = 0f,
+                        inputMax = 1f,
+                        outputMin = 0f,
+                        outputMax = 1f,
+                        curvePreset = CurvePreset.EaseInOut,
+                        smoothing = 0.90f,
+                        deadzone = 0.05f
+                    },
+                    new MappingBinding
+                    {
+                        outputParam = OutputParam.SandbarOffshoreDistance,
+                        inputSignal = InputSignal.Slime_FeetDistance01,
+                        inputMin = 0f,
+                        inputMax = 1f,
+                        outputMin = 0f,
+                        outputMax = 1f,
+                        curvePreset = CurvePreset.EaseOut,
+                        smoothing = 0.90f,
+                        deadzone = 0.05f
+                    },
                 };
             }
             Debug.Log($"[MappingController] Defaults set for {activeCondition}");
